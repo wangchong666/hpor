@@ -15,12 +15,12 @@ http proxy over rabbitmq-rpc
 
 #start RPC Server
 ```
-go run main.go -t RPC
+hpor -t RPC
 ```
 
 #start Proxy Server
 ```
-go run main.go -t PROXY
+hpor -t PROXY
 ```
 
 The proxy server will listen default port 8000
