@@ -1,4 +1,4 @@
-module http-proxy-over-rabbitmq-rpc
+module hpor
 
 go 1.13
 
