@@ -13,14 +13,22 @@ http proxy over rabbitmq-rpc
         amqp地址 (default "amqp://guest:guest@127.0.0.1:5672/")
 ```
 
-### start RPC Server
+### Start RPC Server
 ```
 hpor -t RPC
 ```
+with docker
+```
+docker --rm -it jcty/hpor -t RPC -url amqp://guest:guest@host:5672/
+```
 
-### start Proxy Server
+### Start Proxy Server
 ```
 hpor -t PROXY
+```
+with docker
+```
+docker --rm -it jcty/hpor -t PROXY -url amqp://guest:guest@host:5672/
 ```
 
 The proxy server will listen default port 8000
