@@ -2,7 +2,7 @@ package main
 
 import (
 	"os"
-	"http-proxy-over-rabbitmq-rpc/rpc"
+	"hpor/rpc"
 	"flag"
 	log "github.com/sirupsen/logrus"
 )
@@ -20,12 +20,15 @@ func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.InfoLevel)
 
+
+	flag.Parse()
+
+
 	conf := &rpc.Config{
 		Amqp:*amqp,
 		Port:*port,
 	}
 
-	flag.Parse()
 
 	log.Info("start app as ",*t)
 	
