@@ -28,7 +28,7 @@ hpor -t PROXY
 ```
 with docker
 ```
-docker run --rm -it jcty/hpor -t PROXY -url amqp://guest:guest@host:5672/
+docker run --rm -it jcty/hpor -t PROXY -p 8000:8000 -url amqp://guest:guest@host:5672/
 ```
 
 The proxy server will listen default port 8000
