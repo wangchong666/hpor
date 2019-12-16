@@ -5,12 +5,15 @@ http proxy over rabbitmq-rpc
 ```
   -c int
         The number of consumers，work with -t RPC (default 50)
+  -d    log debug info
   -p int
         HTTP proxy port (default 8000)
+  -q string
+        The queue name for rpc (default "rpc_queue")
   -t string
         RPC or PROXY (default "RPC")
   -url string
-        amqp url (default "amqp://guest:guest@127.0.0.1:5672/")
+        amqp address (default "amqp://guest:guest@127.0.0.1:5672//vhost")
 ```
 
 ### Start RPC Server

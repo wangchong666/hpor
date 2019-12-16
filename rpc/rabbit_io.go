@@ -45,8 +45,6 @@ type RabbitIO interface {
 	// after a fixed time limit; see SetDeadline and SetWriteDeadline.
 	Write(b []byte) (n int, err error)
 
-	Copy(dst io.Writer, src io.Reader) (written int64, err error) 
-
 	GetConn() net.Conn
 	SetConn(conn net.Conn) 
 
@@ -63,12 +61,14 @@ type rabbitIO struct {
 	conn net.Conn
 	sender bool
 	replyTo  string
+	queueName string
 }
 
 
 type Config struct{
 	Amqp string
 	Port int
+	QueueName string
 }
 
 func (c *rabbitIO)Read(b []byte) (n int, err error){
@@ -88,7 +88,7 @@ func (c *rabbitIO)Write(b []byte) (n int, err error){
 	if(c.sender){
 		err = c.ch.Publish(
 			"",          // exchange
-			"rpc_queue", // routing key
+			c.queueName, // routing key
 			false,       // mandatory
 			false,       // immediate
 			amqp.Publishing{
@@ -112,23 +112,6 @@ func (c *rabbitIO)Write(b []byte) (n int, err error){
 	return len(b),err
 }
 
-
-type writerOnly struct {
-	io.Writer
-}
-
-// Fallback implementation of io.ReaderFrom's ReadFrom, when sendfile isn't
-// applicable.
-func (c *rabbitIO)Copy(w io.Writer, r io.Reader) (n int64, err error) {
-	// Use wrapper to hide existing r.ReadFrom from io.Copy.
-	log.Debug("copy")
-	n,err = io.Copy(writerOnly{w}, r)
-	log.Debug("copy",n,err)
-	if(err != nil || n == 0){
-		c.Close()
-	}
-	return n,err
-}
 
 
 func (c *rabbitIO)GetConn() net.Conn{
@@ -244,6 +227,7 @@ func Dial(conn *amqp.Connection,conf *Config) (RabbitIO, error) {
 		q:q,
 		msgs: msgs,
 		sender: true,
+		queueName:conf.QueueName,
 	}
 	log.Info("new connection",corrId)
 	return io,nil
@@ -260,12 +244,13 @@ func Accept(conf *Config, count int){
 	forever := make(chan bool)
 	<-forever
 }
+
 func accept(conf *Config,conn *amqp.Connection) {
 	ch, err := conn.Channel()
 	defer ch.Close()
 	failOnError(err, "Failed to open a channel")
 	q, err := ch.QueueDeclare(
-		"rpc_queue", // name
+		conf.QueueName, // name
 		false,       // durable
 		false,       // delete when unused
 		false,       // exclusive
@@ -302,13 +287,14 @@ func accept(conf *Config,conn *amqp.Connection) {
 			continue
 		}
 		if(ok == false){
-			io := &rabbitIO{
+			rio := &rabbitIO{
 				correlationId:d.CorrelationId,
 				ch:ch,
 				q:q,
 				msgs: msgs,
 				sender:false,
 				replyTo:d.ReplyTo,
+				queueName:conf.QueueName,
 			}
 
 
@@ -332,10 +318,10 @@ func accept(conf *Config,conn *amqp.Connection) {
 				
 			//获得了请求的host和port，就开始拨号吧
 			server, err := net.Dial("tcp", address)
-			io.conn = server
+			rio.conn = server
 			// failOnError(err,"net.Dial "+host+ "failed")
 			if(err != nil){
-				io.Close()
+				rio.Close()
 				d.Ack(false)
 				log.Warn("Dail err ",err,"closing")
 				continue
@@ -344,13 +330,13 @@ func accept(conf *Config,conn *amqp.Connection) {
 			
 			if method == "CONNECT" {
 				// fmt.Fprint(client, )
-				io.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
+				rio.Write([]byte("HTTP/1.1 200 Connection established\r\n\r\n"))
 			} else {
 				server.Write(d.Body[:])
 			}
-			conn_map[d.CorrelationId] = io
+			conn_map[d.CorrelationId] = rio
 			//进行转发
-			go io.Copy(io, server)
+			go io.Copy(rio, server)
 			// go io.Copy(server,io)
 			d.Ack(false)
 			// log.Debug("完成")
