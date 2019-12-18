@@ -4,7 +4,7 @@ http proxy over rabbitmq-rpc
 ### Usage
 ```
   -c int
-        The number of consumers，work with -t RPC (default 50)
+        The number of consumers，work with -t RPC (default 1)
   -d    log debug info
   -p int
         HTTP proxy port (default 8000)
