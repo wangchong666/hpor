@@ -51,7 +51,7 @@ func ReverseProxy(conf *Config) {
 				continue
 			}
 
-			proxy := httputil.NewSingleHostReverseProxy(remote)
+			proxy := newSingleHostReverseProxy(remote)
 			proxy_map[a[0]] = proxy
 			http.HandleFunc("/", handler())
 		}
@@ -63,9 +63,41 @@ func ReverseProxy(conf *Config) {
 	}
 }
 
+func singleJoiningSlash(a, b string) string {
+	aslash := strings.HasSuffix(a, "/")
+	bslash := strings.HasPrefix(b, "/")
+	switch {
+	case aslash && bslash:
+		return a + b[1:]
+	case !aslash && !bslash:
+		return a + "/" + b
+	}
+	return a + b
+}
+
+func newSingleHostReverseProxy(target *url.URL) *httputil.ReverseProxy {
+	targetQuery := target.RawQuery
+	director := func(req *http.Request) {
+		req.URL.Scheme = target.Scheme
+		req.URL.Host = target.Host
+		req.URL.Path = singleJoiningSlash(target.Path, req.URL.Path)
+		req.Host = target.Host
+		if targetQuery == "" || req.URL.RawQuery == "" {
+			req.URL.RawQuery = targetQuery + req.URL.RawQuery
+		} else {
+			req.URL.RawQuery = targetQuery + "&" + req.URL.RawQuery
+		}
+		if _, ok := req.Header["User-Agent"]; !ok {
+			// explicitly disable User-Agent so it's not set to default value
+			req.Header.Set("User-Agent", "")
+		}
+	}
+	return &httputil.ReverseProxy{Director: director}
+}
+
 func handler() func(http.ResponseWriter, *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		log.Println(r.Host, r.URL)
+		log.Info(r.Host, r.URL)
 		// w.Header().Set("X-Ben", "Rad")
 		for k, v := range proxy_map {
 			if strings.HasPrefix(r.URL.String(), k) {
@@ -155,13 +187,16 @@ func Dial(conn *amqp.Connection, conf *Config) (*rabbitIO, error) {
 }
 
 func Accept(conf *Config, count int) {
-	conn, err := amqp.Dial(conf.Amqp)
-	failOnError(err, "Failed to open a amqp connection")
-	for i := 0; i < count; i++ {
-		go accept(conf, conn)
+	for {
+		conn, err := amqp.Dial(conf.Amqp)
+		failOnError(err, "Failed to open a amqp connection")
+		for i := 0; i < count; i++ {
+			go accept(conf, conn)
+		}
+
+		notify := conn.NotifyClose(make(chan *amqp.Error)) //error channel
+		log.Error(<-notify)
 	}
-	forever := make(chan bool)
-	<-forever
 }
 
 var conn_map = make(map[string]*rabbitIO) //连接复用
@@ -232,6 +267,4 @@ func accept(conf *Config, conn *amqp.Connection) {
 		}
 		d.Ack(true)
 	}
-	forever := make(chan bool)
-	<-forever
 }
